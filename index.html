@@ -1,96 +1,169 @@
 <!DOCTYPE html>
 <html lang="en-us">
-  <head>
-    <meta charset="utf-8" />
-    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1.0, user-scalable=no"
-    />
-    <title>testwebgl</title>
-    <link rel="shortcut icon" href="TemplateData/favicon.ico" />
-    <link rel="stylesheet" href="TemplateData/style.css" />
-  </head>
-  <body class="dark">
-    <div id="unity-container" class="unity-desktop">
-      <canvas id="unity-canvas"></canvas>
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- Start loading assets right away, to have them (partly) loaded already when they are requested -->
+  <link rel="preload" href="Build//play.data" as="fetch" type="application/octet-stream" crossorigin>
+  <link rel="preload" href="Build/play.framework.js" as="script">
+  <link rel="preload" href="Build/play.wasm" as="fetch" type="application/wasm" crossorigin>
+  <title>testwebgl</title>
+  <style>
+    * {
+      padding: 0;
+      margin: 0;
+    }
+
+    html {
+      /* fix mobile viewport menu bar on iOS */
+      height: -webkit-fill-available;
+    }
+
+    body {
+      height: 100%;
+      /* fix mobile viewport menu bar on iOS */
+      height: -webkit-fill-available;
+      width: 100%;
+      text-align: center;
+    }
+
+    #unity-container {
+      position: absolute;
+      left: 0px;
+      top: 0px;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background-color: #000000;
+    }
+
+    /* Default values, might be overwritten by aspect ratio media queries */
+    #unity-canvas {
+      width: 100%;
+      height: 100%;
+      background-color: #fff;
+    }
+
+    @media (min-aspect-ratio: 9/16) {
+      #unity-canvas {
+        width: auto;
+        height: 100%;
+        aspect-ratio: 9/16;
+      }
+    }
+
+    @media (max-aspect-ratio: 1/2) {
+      #unity-canvas {
+        width: 100%;
+        height: auto;
+        aspect-ratio: 1/2;
+      }
+    }
+
+    #unity-loading-container {
+      position: absolute;
+      left: 0px;
+      top: 0px;
+      width: 100%;
+      height: 100%;
+      background-color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 40px;
+
+      opacity: 1;
+      visibility: visible;
+      transition: 800ms linear;
+    }
+
+    #unity-loading-container.finished {
+      opacity: 0;
+      visibility: collapse;
+    }
+
+    #unity-loading-container .logo {
+      width: 15%;
+      height: 15%;
+    }
+
+    #unity-loading-bar {
+      position: relative;
+      width: 40%;
+      height: 10px;
+      background-color: #fff;
+      border: 1px solid #ccc;
+      border-radius: 10px;
+    }
+
+    #unity-loading-bar-inner {
+      position: absolute;
+      left: 0%;
+      top: 0%;
+      width: 1%;
+      height: 100%;
+      background-color: #ccc;
+      border-radius: 10px;
+      transition: 400ms linear;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="unity-container">
+    <canvas id="unity-canvas"></canvas>
+  </div>
+  <div id="unity-loading-container">
+    <img src="logo.svg" class="logo" alt="Logo TTT">
+    <div id="unity-loading-bar">
+      <div id="unity-loading-bar-inner"></div>
     </div>
-    <div id="loading-cover" style="display: none">
-      <div id="unity-loading-bar">
-        <div id="unity-logo"></div>
-        <div id="unity-progress-bar-empty" style="display: none">
-          <div id="unity-progress-bar-full"></div>
-        </div>
-        <div class="spinner"></div>
-      </div>
-    </div>
-    <div id="unity-fullscreen-button" style="display: none"></div>
-    <script type="module">
-            const hideFullScreenButton = "";
-            const buildUrl = "Build";
-            const loaderUrl = buildUrl + "/play.loader.js";
-            const config = {
-              dataUrl: buildUrl + "/play.data",
-              frameworkUrl: buildUrl + "/play.framework.js",
-              codeUrl: buildUrl + "/play.wasm",
-              streamingAssetsUrl: "StreamingAssets",
-              companyName: "TTT",
-              productName: "testwebgl",
-              productVersion: "1.0.0",
-            };
+  </div>
+  <script src="Build/play.loader.js"></script>
+  <script>
+    var buildUrl = "Build";
+    var loaderUrl = buildUrl + "/play.loader.js";
+    var config = {
+      dataUrl: buildUrl + "/play.data",
+      frameworkUrl: buildUrl + "/play.framework.js",
+      codeUrl: buildUrl + "/play.wasm",
+      streamingAssetsUrl: "StreamingAssets",
+      companyName: "TTT",
+      productName: "testwebgl",
+      productVersion: "1.0.0",
+    };
 
-            const container = document.querySelector("#unity-container");
-            const canvas = document.querySelector("#unity-canvas");
-            const loadingCover = document.querySelector("#loading-cover");
-            const progressBarEmpty = document.querySelector("#unity-progress-bar-empty");
-            const progressBarFull = document.querySelector("#unity-progress-bar-full");
-            const fullscreenButton = document.querySelector("#unity-fullscreen-button");
-            const spinner = document.querySelector('.spinner');
+    var isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    if(isMobile) {
+      // Define a maximum pixel ratio for mobile to avoid rendering at too high resolutions
+      const maxPixelRatioMobile = 2.0;
+      config.devicePixelRatio = Math.min(window.devicePixelRatio, maxPixelRatioMobile);
+    }
 
-            const canFullscreen = (function() {
-              for (const key of [
-                  'exitFullscreen',
-                  'webkitExitFullscreen',
-                  'webkitCancelFullScreen',
-                  'mozCancelFullScreen',
-                  'msExitFullscreen',
-                ]) {
-                if (key in document) {
-                  return true;
-                }
-              }
-              return false;
-            }());
+    var canvas = document.querySelector("#unity-canvas");
+    var loadingContainer = document.querySelector("#unity-loading-container");
+    var loadingBar = document.querySelector("#unity-loading-bar-inner");
 
-            if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
-              container.className = "unity-mobile";
-              config.devicePixelRatio = 1;
-            }
-            loadingCover.style.display = "";
-            const script = document.createElement("script");
-            script.src = loaderUrl;
-            script.onload = () => {
-              import('./lib/thirdweb-unity-bridge.js').then(module => {
-                createUnityInstance(canvas, config, (progress) => {
-                  spinner.style.display = "none";
-                  progressBarEmpty.style.display = "";
-                  progressBarFull.style.width = `${100 * progress}%`;
-                }).then((unityInstance) => {
-                  loadingCover.style.display = "none";
-                  if (canFullscreen) {
-                    if (!hideFullScreenButton) {
-                      fullscreenButton.style.display = "";
-                    }
-                    fullscreenButton.onclick = () => {
-                      unityInstance.SetFullscreen(1);
-                    };
-                  }
-                }).catch((message) => {
-                  alert(message);
-                });
-              });
-            };
-            document.body.appendChild(script);
-    </script>
-  </body>
+    var unityGame;
+    var script = document.createElement("script");
+    script.src = loaderUrl;
+    script.onload = function() {
+      createUnityInstance(canvas, config, function(progress) {
+        loadingBar.style.width = 100 * progress + "%";
+      }).then(function(unityInstance) {
+        unityGame = unityInstance;
+        loadingContainer.classList.add("finished");
+      }).catch(function(message) {
+        alert(message);
+      });
+    };
+    document.body.appendChild(script);
+  </script>
+  <!-- Parse Unity rich text to render stylized browser console logs -->
+  <script src="./pretty-console.js"></script>
+</body>
 </html>
